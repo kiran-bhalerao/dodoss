@@ -9,13 +9,14 @@ pub enum AppInstruction {
         title: String,
         content: String,
         state: u8,
-        create_time: u32,
-        update_time: u32,
+        create_time: u64,
+        update_time: u64,
     },
     UpdateDodo {
         state: u8,
-        update_time: u32,
+        update_time: u64,
     },
+    RemoveDodo,
 }
 
 impl AppInstruction {
@@ -46,20 +47,13 @@ impl AppInstruction {
                 }
             }
             1 => {
-                let state = rest
-                    .get(..1)
-                    .and_then(|slice| slice.try_into().ok())
-                    .map(u8::from_le_bytes)
-                    .ok_or(AppError::InvalidInstruction)?;
-
-                let update_time = rest
-                    .get((1)..(1 + 4))
-                    .and_then(|slice| slice.try_into().ok())
-                    .map(u32::from_le_bytes)
-                    .ok_or(AppError::InvalidInstruction)?;
+                let Dodo {
+                    state, update_time, ..
+                } = Dodo::unpack(rest)?;
 
                 Self::UpdateDodo { state, update_time }
             }
+            2 => Self::RemoveDodo,
             _ => return Err(AppError::InvalidInstruction.into()),
         })
     }

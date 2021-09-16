@@ -6,27 +6,29 @@ import type {
   TransactionInstruction,
 } from "@solana/web3.js";
 import { ProgramBase } from "src/program/lib/base";
+import { fixedSizeStringArray } from "src/program/lib/fixedSizeStringArray";
 import { Lock } from "src/program/lib/lock";
 
 const DODO_SEED = "DODO";
 const DODO_SIZE =
-  140 * 4 + // title 140 chars
-  500 * 4 + // content 500 chars
+  46 * 4 + // title 46 chars
+  172 * 4 + // content 172 chars
   1 + // state 1byte (0,1,2)
-  4 + // create_time 4bytes (timestamp)
-  4; // update_time 4bytes (timestamp)
+  8 + // create_time 8bytes (timestamp)
+  8; // update_time 8bytes (timestamp)
 
 const DODO_SCHEMA = [
-  { key: "title", type: "[char;140]" },
-  { key: "content", type: "[char;500]" },
+  { key: "title", type: "[char;46]" },
+  { key: "content", type: "[char;172]" },
   { key: "state", type: "u8" },
-  { key: "create_time", type: "u32" },
-  { key: "update_time", type: "u32" },
+  { key: "create_time", type: "u64" },
+  { key: "update_time", type: "u64" },
 ];
 
 enum DODO_INSTRUCTIONS {
   CREATE,
   UPDATE,
+  REMOVE,
 }
 
 export enum DODO_STATE {
@@ -80,7 +82,7 @@ export class Dodo {
     const { connection, walletPk, programId, index } = ins;
 
     if (!dodoPk) {
-      if (!index) {
+      if (index === null || index === undefined) {
         throw new Error("Invalid fetch index");
       }
 
@@ -193,7 +195,11 @@ export class Dodo {
         keys,
         schema: DODO_SCHEMA,
         programPk: programId,
-        data: dodoData,
+        data: {
+          ...dodoData,
+          title: fixedSizeStringArray(dodoData.title, 46),
+          content: fixedSizeStringArray(dodoData.content, 172),
+        },
       });
 
       instructions.push(dataIns);

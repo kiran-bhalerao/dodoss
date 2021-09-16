@@ -12,8 +12,8 @@ pub struct Dodo {
     pub title: String,
     pub content: String,
     pub state: u8,
-    pub create_time: u32,
-    pub update_time: u32,
+    pub create_time: u64,
+    pub update_time: u64,
 }
 
 //
@@ -35,17 +35,17 @@ impl IsInitialized for Dodo {
 //
 impl Pack for Dodo {
     // Fixed length
-    const LEN: usize = 140 * 4 + // title 140 chars
-                       500 * 4 + // content 500 chars
+    const LEN: usize = 46 * 4 + // title 46 chars
+                       172 * 4 + // content 172 chars
                        1 + // state 1byte (0,1,2)
-                       4 + // create_time 4bytes (timestamp)
-                       4; // update_time 4bytes (timestamp)
+                       8 + // create_time 4bytes (timestamp)
+                       8; // update_time 4bytes (timestamp)
 
     // Unpack data from [u8] to the data struct
     fn unpack_from_slice(src: &[u8]) -> Result<Self, ProgramError> {
-        let src = array_ref![src, 0, 140 * 4 + 500 * 4 + 1 + 4 + 4];
+        let src = array_ref![src, 0, 46 * 4 + 172 * 4 + 1 + 8 + 8];
         let (title, content, state, create_time, update_time) =
-            array_refs![src, 140 * 4, 500 * 4, 1, 4, 4];
+            array_refs![src, 46 * 4, 172 * 4, 1, 8, 8];
 
         let title_s: String = title
             .chunks(4)
@@ -58,8 +58,8 @@ impl Pack for Dodo {
             .collect();
 
         let state_u = u8::from_le_bytes(*state);
-        let create_time_u = u32::from_le_bytes(*create_time);
-        let update_time_u = u32::from_le_bytes(*update_time);
+        let create_time_u = u64::from_le_bytes(*create_time);
+        let update_time_u = u64::from_le_bytes(*update_time);
 
         Ok(Dodo {
             title: title_s,
@@ -72,9 +72,9 @@ impl Pack for Dodo {
 
     // Pack data from the data struct to [u8]
     fn pack_into_slice(&self, dst: &mut [u8]) {
-        let dst = array_mut_ref![dst, 0, 140 * 4 + 500 * 4 + 1 + 4 + 4];
+        let dst = array_mut_ref![dst, 0, 46 * 4 + 172 * 4 + 1 + 8 + 8];
         let (dst_title, dst_content, dst_state, dst_create_time, dst_update_time) =
-            mut_array_refs![dst, 140 * 4, 500 * 4, 1, 4, 4];
+            mut_array_refs![dst, 46 * 4, 172 * 4, 1, 8, 8];
 
         // Destructure a reference of self to get data to be packed
         let Dodo {
@@ -85,8 +85,8 @@ impl Pack for Dodo {
             update_time,
         } = self;
 
-        pack_string_140_chars(&title, dst_title);
-        pack_string_500_chars(&content, dst_content);
+        pack_string_40_chars(&title, dst_title);
+        pack_string_120_chars(&content, dst_content);
 
         *dst_state = state.to_le_bytes();
         *dst_create_time = create_time.to_le_bytes();
@@ -94,7 +94,7 @@ impl Pack for Dodo {
     }
 }
 
-fn pack_string_140_chars(src: &String, dst: &mut [u8; 140 * 4]) {
+fn pack_string_40_chars(src: &String, dst: &mut [u8; 46 * 4]) {
     // utf8 strings no unicode no special things, only this
     let mut index = 0;
     for c in src.chars() {
@@ -104,7 +104,7 @@ fn pack_string_140_chars(src: &String, dst: &mut [u8; 140 * 4]) {
     }
 }
 
-fn pack_string_500_chars(src: &String, dst: &mut [u8; 500 * 4]) {
+fn pack_string_120_chars(src: &String, dst: &mut [u8; 172 * 4]) {
     let mut index = 0;
     for c in src.chars() {
         dst[index] = c.to_string().as_bytes()[0];

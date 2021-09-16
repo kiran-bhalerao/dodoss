@@ -63,6 +63,7 @@ export class ProgramTransaction {
     const recentBlock = await connection.getRecentBlockhash("max");
     transaction.recentBlockhash = recentBlock.blockhash;
 
+    console.log("___!", transaction);
     transaction = await wallet.signTransaction(transaction);
     const rawTransaction = transaction.serialize();
 

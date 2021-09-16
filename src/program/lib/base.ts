@@ -29,8 +29,14 @@ export abstract class ProgramBase<K> {
   }
 
   public decodeStr(str: string) {
-    return str
-      .split("")
+    let strArr = [];
+    if (Array.isArray(str)) {
+      strArr = str;
+    } else {
+      strArr = str.split("");
+    }
+
+    return strArr
       .filter((c) => c.charCodeAt(0) !== 0)
       .map((c) => c.replace(/\0/g, ""))
       .join("");

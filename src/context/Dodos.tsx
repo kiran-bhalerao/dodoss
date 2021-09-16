@@ -1,5 +1,12 @@
 import { PublicKey } from "@solana/web3.js";
-import { createContext, FC, useCallback, useContext, useState } from "react";
+import {
+  createContext,
+  FC,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
 import { useConnection } from "src/context/Connection";
 import { useWallet } from "src/context/Wallet";
 import progConf from "src/program-config.json";
@@ -13,7 +20,10 @@ type IDodosContext = {
   createDodo: (
     data: Parameters<typeof Dodo.createOrUpdate>["0"]["dodoData"]
   ) => Promise<Dodo | undefined>;
-  updateDodo: (dodoPk: PublicKey) => Promise<Dodo | undefined>;
+  updateDodo: (
+    dodoPk: PublicKey,
+    data: Parameters<typeof Dodo.createOrUpdate>["0"]["dodoData"]
+  ) => Promise<Dodo | undefined>;
 };
 
 // This context is interface(binding) between "dodos program's js client" and react.js
@@ -74,13 +84,17 @@ export const DodosProvider: FC = ({ children }) => {
   );
 
   const updateDodo = useCallback(
-    async (dodoPk: PublicKey) => {
+    async (
+      dodoPk: PublicKey,
+      data: Parameters<typeof Dodo.createOrUpdate>["0"]["dodoData"]
+    ) => {
       if (wallet) {
         const dodo = await Dodo.createOrUpdate({
           connection,
           wallet,
           programId: APP_PROGRAM_KEY,
           dodoPk,
+          dodoData: data,
         });
 
         if (dodo) {
@@ -100,6 +114,10 @@ export const DodosProvider: FC = ({ children }) => {
     },
     [connection, wallet]
   );
+
+  useEffect(() => {
+    reFetchAll();
+  }, [reFetchAll]);
 
   return (
     <DodosContext.Provider

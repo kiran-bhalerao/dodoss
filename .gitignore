@@ -12,6 +12,7 @@
 /build
 /dist
 /**/*/target
+/test-ledger/**/*
 
 # misc
 .DS_Store
