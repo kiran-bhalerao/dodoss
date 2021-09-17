@@ -57,7 +57,7 @@ type DodoData = {
   creator?: string;
 };
 
-class DodoBase extends ProgramBase<DodoData> {
+class DodoBase extends ProgramBase<Required<DodoData>> {
   seed(args: { seedKey: string | number }) {
     return `${DODO_SEED}__${args.seedKey}`;
   }

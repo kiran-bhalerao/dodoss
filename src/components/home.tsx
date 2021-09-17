@@ -5,9 +5,8 @@ import { DODO_STATE } from "src/program/dodo";
 
 export const Home: FC = () => {
   const { balance, connect, wallet, disconnect } = useWallet();
-  const { dodos, createDodo, updateDodo } = useDodos();
+  const { createDodo } = useDodos();
 
-  console.log("___", dodos);
   const create = async () => {
     const dodo = await createDodo({
       title: "Hello dodo",
