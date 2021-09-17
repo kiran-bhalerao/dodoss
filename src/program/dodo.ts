@@ -11,18 +11,29 @@ import { Lock } from "src/program/lib/lock";
 
 const DODO_SEED = "DODO";
 const DODO_SIZE =
-  46 * 4 + // title 46 chars
-  172 * 4 + // content 172 chars
+  124 * 4 + // title 124 chars
+  24 * 4 + // tagline 24 chars
   1 + // state 1byte (0,1,2)
   8 + // create_time 8bytes (timestamp)
-  8; // update_time 8bytes (timestamp)
+  8 + // update_time 8bytes (timestamp)
+  1 * 32; // creator array of 32 bytes
 
-const DODO_SCHEMA = [
-  { key: "title", type: "[char;46]" },
-  { key: "content", type: "[char;172]" },
+const UPDATE_DODO_SCHEMA = [
+  { key: "state", type: "u8" },
+  { key: "update_time", type: "u64" },
+];
+
+const CREATE_DODO_SCHEMA = [
+  { key: "title", type: "[char;124]" },
+  { key: "tagline", type: "[char;24]" },
   { key: "state", type: "u8" },
   { key: "create_time", type: "u64" },
   { key: "update_time", type: "u64" },
+];
+
+const DODO_SCHEMA = [
+  ...CREATE_DODO_SCHEMA,
+  { key: "creator", type: "[u8;32]" },
 ];
 
 enum DODO_INSTRUCTIONS {
@@ -39,10 +50,11 @@ export enum DODO_STATE {
 
 type DodoData = {
   title: string;
-  content: string;
+  tagline: string;
   state: DODO_STATE;
   create_time: number;
   update_time: number;
+  creator?: string;
 };
 
 class DodoBase extends ProgramBase<DodoData> {
@@ -51,15 +63,16 @@ class DodoBase extends ProgramBase<DodoData> {
   }
 
   decode(info: AccountInfo<Buffer>) {
-    const { title, content, state, create_time, update_time } =
+    const { title, tagline, state, create_time, update_time, creator } =
       super.decodeInfo(info, DODO_SCHEMA);
 
     return {
       title: super.decodeStr(title),
-      content: super.decodeStr(content),
+      tagline: super.decodeStr(tagline),
       state: Number(state),
       create_time: Number(create_time),
       update_time: Number(update_time),
+      creator: super.decodePubKey(creator as unknown as number[]).toString(),
     };
   }
 }
@@ -67,7 +80,7 @@ class DodoBase extends ProgramBase<DodoData> {
 export class Dodo {
   private static BASE = new DodoBase();
   private static STARTING_INDEX = 0; // now worry, these indexes are user specific
-  private static NEXT_INDEX = new Lock(-1);
+  private static NEXT_INDEX = new Lock(-1); // to create Dodo pda we need a seed that must be unique and retraceable, its like database document id's.
 
   private constructor(public publicKey: PublicKey, public data: DodoData) {}
 
@@ -137,14 +150,12 @@ export class Dodo {
     return dodos;
   }
 
-  static async createOrUpdate(ins: {
+  static async create(ins: {
     wallet: BaseSignerWalletAdapter;
     connection: Connection;
     programId: PublicKey;
-    dodoData?: DodoData;
-    dodoPk?: PublicKey;
+    dodoData: DodoData;
   }) {
-    let { dodoPk } = ins;
     const { wallet, connection, programId, dodoData } = ins;
 
     const walletPk = wallet.publicKey;
@@ -152,58 +163,52 @@ export class Dodo {
       throw new Error("The wallet does not have a public key");
     }
 
-    let tag = DODO_INSTRUCTIONS.UPDATE;
     const instructions: TransactionInstruction[] = [];
 
-    if (!dodoPk) {
-      if (Dodo.NEXT_INDEX.value === -1) {
-        throw new Error(
-          "Before init you have to fetchAll dodos, fetchAll will set Next index"
-        );
-      }
-
-      const seed = Dodo.BASE.seed({ seedKey: Dodo.NEXT_INDEX.value });
-      dodoPk = await Dodo.BASE.publicKeyFromSeed({
-        seedKey: Dodo.NEXT_INDEX.value,
-        walletPk,
-        programId,
-      });
-
-      // create an empty account
-      const emptyAccIns = await Dodo.BASE.createRentAccount({
-        seed,
-        walletPk,
-        programId,
-        connection,
-        space: DODO_SIZE,
-        newAccountPubkey: dodoPk,
-      });
-
-      tag = DODO_INSTRUCTIONS.CREATE;
-      instructions.push(emptyAccIns);
+    if (Dodo.NEXT_INDEX.value === -1) {
+      throw new Error(
+        "Before init you have to fetchAll dodos, fetchAll will set Next index"
+      );
     }
 
-    if (dodoData) {
-      const keys = [
-        { pubkey: walletPk, isSigner: true, isWritable: true },
-        { pubkey: dodoPk, isSigner: false, isWritable: true },
-      ];
+    const seed = Dodo.BASE.seed({ seedKey: Dodo.NEXT_INDEX.value });
+    const dodoPk = await Dodo.BASE.publicKeyFromSeed({
+      seedKey: Dodo.NEXT_INDEX.value,
+      walletPk,
+      programId,
+    });
 
-      // create initial data instruction
-      const dataIns = Dodo.BASE.encodeDataIntoInstruction({
-        tag,
-        keys,
-        schema: DODO_SCHEMA,
-        programPk: programId,
-        data: {
-          ...dodoData,
-          title: fixedSizeStringArray(dodoData.title, 46),
-          content: fixedSizeStringArray(dodoData.content, 172),
-        },
-      });
+    // create an empty account
+    const emptyAccIns = await Dodo.BASE.createRentAccount({
+      seed,
+      walletPk,
+      programId,
+      connection,
+      space: DODO_SIZE,
+      newAccountPubkey: dodoPk,
+    });
 
-      instructions.push(dataIns);
-    }
+    instructions.push(emptyAccIns);
+
+    const keys = [
+      { pubkey: walletPk, isSigner: true, isWritable: true },
+      { pubkey: dodoPk, isSigner: false, isWritable: true },
+    ];
+
+    // create initial data instruction
+    const dataIns = Dodo.BASE.encodeDataIntoInstruction({
+      tag: DODO_INSTRUCTIONS.CREATE,
+      keys,
+      schema: CREATE_DODO_SCHEMA,
+      programPk: programId,
+      data: {
+        ...dodoData,
+        title: fixedSizeStringArray(dodoData.title, 124),
+        tagline: fixedSizeStringArray(dodoData.tagline, 24),
+      },
+    });
+
+    instructions.push(dataIns);
 
     await Dodo.BASE.createTransaction({
       wallet,
@@ -211,10 +216,57 @@ export class Dodo {
       instructions,
     });
 
-    if (tag === DODO_INSTRUCTIONS.CREATE) {
+    const createdDodo = await Dodo.fetch({
+      dodoPk,
+      walletPk,
+      connection,
+      programId,
+    });
+
+    if (createdDodo) {
       // update next index
       Dodo.NEXT_INDEX.value++;
     }
+
+    return createdDodo;
+  }
+
+  static async update(ins: {
+    wallet: BaseSignerWalletAdapter;
+    connection: Connection;
+    programId: PublicKey;
+    dodoData: Pick<DodoData, "state"> & Pick<DodoData, "update_time">;
+    dodoPk: PublicKey;
+  }) {
+    const { wallet, connection, programId, dodoData, dodoPk } = ins;
+
+    const walletPk = wallet.publicKey;
+    if (!walletPk) {
+      throw new Error("The wallet does not have a public key");
+    }
+
+    const instructions: TransactionInstruction[] = [];
+    const keys = [
+      { pubkey: walletPk, isSigner: true, isWritable: true },
+      { pubkey: dodoPk, isSigner: false, isWritable: true },
+    ];
+
+    // create data instruction
+    const dataIns = Dodo.BASE.encodeDataIntoInstruction({
+      tag: DODO_INSTRUCTIONS.UPDATE,
+      keys,
+      schema: UPDATE_DODO_SCHEMA,
+      programPk: programId,
+      data: dodoData,
+    });
+
+    instructions.push(dataIns);
+
+    await Dodo.BASE.createTransaction({
+      wallet,
+      connection,
+      instructions,
+    });
 
     return Dodo.fetch({
       dodoPk,
@@ -222,5 +274,54 @@ export class Dodo {
       connection,
       programId,
     });
+  }
+
+  static async remove(ins: {
+    wallet: BaseSignerWalletAdapter;
+    connection: Connection;
+    programId: PublicKey;
+    dodoPk: PublicKey;
+  }) {
+    const { wallet, connection, programId, dodoPk } = ins;
+
+    const walletPk = wallet.publicKey;
+    if (!walletPk) {
+      throw new Error("The wallet does not have a public key");
+    }
+
+    const instructions: TransactionInstruction[] = [];
+    const keys = [
+      { pubkey: walletPk, isSigner: true, isWritable: true },
+      { pubkey: dodoPk, isSigner: false, isWritable: true },
+    ];
+
+    // remove dodo instruction
+    const dataIns = Dodo.BASE.encodeDataIntoInstruction({
+      keys,
+      programPk: programId,
+      tag: DODO_INSTRUCTIONS.REMOVE,
+    });
+
+    instructions.push(dataIns);
+
+    await Dodo.BASE.createTransaction({
+      wallet,
+      connection,
+      instructions,
+    });
+
+    const removedDodo = await Dodo.fetch({
+      dodoPk,
+      walletPk,
+      connection,
+      programId,
+    });
+
+    if (!removedDodo) {
+      // update next index
+      Dodo.NEXT_INDEX.value--;
+    }
+
+    return removedDodo;
   }
 }

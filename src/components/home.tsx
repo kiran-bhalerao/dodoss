@@ -11,7 +11,7 @@ export const Home: FC = () => {
   const create = async () => {
     const dodo = await createDodo({
       title: "Hello dodo",
-      content: "nothing to say",
+      tagline: "🔥 m",
       state: DODO_STATE.TODO,
       create_time: Date.now(),
       update_time: Date.now(),

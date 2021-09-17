@@ -42,6 +42,10 @@ export abstract class ProgramBase<K> {
       .join("");
   }
 
+  public decodePubKey(u8Array: number[]) {
+    return new PublicKey(new Uint8Array(u8Array));
+  }
+
   public decodeInfo(info: AccountInfo<Buffer>, schema: Schema): K {
     const buffer = Buffer.from(info.data);
     const layout = new soproxABI.struct(schema);
@@ -52,15 +56,18 @@ export abstract class ProgramBase<K> {
 
   public encodeDataIntoInstruction<Z = { [P in keyof K]?: unknown }>(ins: {
     tag: number;
-    schema: Schema;
     keys: AccountMeta[];
     programPk: PublicKey;
-    data: Z;
+    schema?: Schema;
+    data?: Z;
   }) {
     const { data, tag, keys, schema, programPk } = ins;
-    const tagData = new soproxABI.u8(tag);
-    const restData = new soproxABI.struct(schema, data);
-    const bufferData = soproxABI.pack(tagData, restData);
+    let bufferData = new soproxABI.u8(tag);
+
+    if (schema && data) {
+      const restData = new soproxABI.struct(schema, data);
+      bufferData = soproxABI.pack(bufferData, restData);
+    }
 
     return new TransactionInstruction({
       keys,

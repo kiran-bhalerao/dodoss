@@ -18,11 +18,11 @@ type IDodosContext = {
   dodos: Dodo[];
   reFetchAll: () => Promise<void>;
   createDodo: (
-    data: Parameters<typeof Dodo.createOrUpdate>["0"]["dodoData"]
+    data: Parameters<typeof Dodo.create>["0"]["dodoData"]
   ) => Promise<Dodo | undefined>;
   updateDodo: (
     dodoPk: PublicKey,
-    data: Parameters<typeof Dodo.createOrUpdate>["0"]["dodoData"]
+    data: Parameters<typeof Dodo.update>["0"]["dodoData"]
   ) => Promise<Dodo | undefined>;
 };
 
@@ -65,9 +65,9 @@ export const DodosProvider: FC = ({ children }) => {
   }, [connection, wallet?.publicKey]);
 
   const createDodo = useCallback(
-    async (data: Parameters<typeof Dodo.createOrUpdate>["0"]["dodoData"]) => {
+    async (data: Parameters<typeof Dodo.create>["0"]["dodoData"]) => {
       if (wallet) {
-        const dodo = await Dodo.createOrUpdate({
+        const dodo = await Dodo.create({
           connection,
           wallet,
           programId: APP_PROGRAM_KEY,
@@ -86,10 +86,10 @@ export const DodosProvider: FC = ({ children }) => {
   const updateDodo = useCallback(
     async (
       dodoPk: PublicKey,
-      data: Parameters<typeof Dodo.createOrUpdate>["0"]["dodoData"]
+      data: Parameters<typeof Dodo.update>["0"]["dodoData"]
     ) => {
       if (wallet) {
-        const dodo = await Dodo.createOrUpdate({
+        const dodo = await Dodo.update({
           connection,
           wallet,
           programId: APP_PROGRAM_KEY,

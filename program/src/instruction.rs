@@ -1,13 +1,14 @@
-use std::convert::TryInto;
+use std::str::from_utf8;
 
-use crate::{error::AppError, schema::dodo::Dodo};
-use solana_program::{program_error::ProgramError, program_pack::Pack};
+use crate::error::AppError;
+use arrayref::{array_ref, array_refs};
+use solana_program::program_error::ProgramError;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum AppInstruction {
     CreateDodo {
         title: String,
-        content: String,
+        tagline: String,
         state: u8,
         create_time: u64,
         update_time: u64,
@@ -29,27 +30,64 @@ impl AppInstruction {
 
         Ok(match tag {
             0 => {
-                // unpack binary data into Memo schema
-                let Dodo {
-                    title,
-                    content,
-                    state,
-                    create_time,
-                    update_time,
-                } = Dodo::unpack(rest)?;
+                // decode binary data into Dodo schema
+
+                let src = array_ref![rest, 0, 124 * 4 + 24 * 4 + 1 + 8 + 8];
+                let (_title, _tagline, _state, _create_time, _update_time) =
+                    array_refs![src, 124 * 4, 24 * 4, 1, 8, 8];
+
+                let title: String = _title
+                    .chunks(4)
+                    .map(|slice| {
+                        let end = if slice[3] > 0 {
+                            3
+                        } else if slice[2] > 0 {
+                            2
+                        } else if slice[1] > 0 {
+                            1
+                        } else {
+                            0
+                        };
+
+                        from_utf8(&slice[0..=end]).unwrap().to_string()
+                    })
+                    .collect();
+
+                let tagline: String = _tagline
+                    .chunks(4)
+                    .map(|slice| {
+                        let end = if slice[3] > 0 {
+                            3
+                        } else if slice[2] > 0 {
+                            2
+                        } else if slice[1] > 0 {
+                            1
+                        } else {
+                            0
+                        };
+
+                        from_utf8(&slice[0..=end]).unwrap().to_string()
+                    })
+                    .collect();
+
+                let state = u8::from_le_bytes(*_state);
+                let create_time = u64::from_le_bytes(*_create_time);
+                let update_time = u64::from_le_bytes(*_update_time);
 
                 Self::CreateDodo {
                     title,
-                    content,
+                    tagline,
                     state,
                     create_time,
                     update_time,
                 }
             }
             1 => {
-                let Dodo {
-                    state, update_time, ..
-                } = Dodo::unpack(rest)?;
+                let src = array_ref![rest, 0, 1 + 8];
+                let (_state, _update_time) = array_refs![src, 1, 8];
+
+                let state = u8::from_le_bytes(*_state);
+                let update_time = u64::from_le_bytes(*_update_time);
 
                 Self::UpdateDodo { state, update_time }
             }
