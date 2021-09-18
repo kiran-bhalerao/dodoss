@@ -55,7 +55,7 @@ impl Processor {
                 }
 
                 let mut data = Dodo::unpack(&dodo_account.data.borrow())?;
-                if data.creator == creator_account.key.to_bytes() {
+                if data.creator != creator_account.key.to_bytes() {
                     // TODO:: create unauthorized error type
                     return Err(AppError::IncorrectProgramId.into());
                 }
@@ -75,7 +75,7 @@ impl Processor {
                 let lamports = dodo_account.lamports();
 
                 let data = Dodo::unpack(&dodo_account.data.borrow())?;
-                if data.creator == creator_account.key.to_bytes() {
+                if data.creator != creator_account.key.to_bytes() {
                     // TODO:: create unauthorized error type
                     return Err(AppError::IncorrectProgramId.into());
                 }
