@@ -1,10 +1,10 @@
-use std::str::from_utf8;
-
 use arrayref::{array_mut_ref, array_ref, array_refs, mut_array_refs};
 use solana_program::{
     program_error::ProgramError,
     program_pack::{IsInitialized, Pack, Sealed},
 };
+
+use crate::utils::convert_u8bytes_to_string;
 
 //
 // Define the data struct
@@ -33,58 +33,36 @@ impl IsInitialized for Dodo {
     }
 }
 
+pub const TITLE_LEN: usize = 124 * 4;
+pub const TAGLINE_LEN: usize = 24 * 4;
+pub const STATE_LEN: usize = 1;
+pub const CREATE_TIME_LEN: usize = 8;
+pub const UPDATE_TIME_LEN: usize = 8;
+pub const CREATOR_LEN: usize = 1 * 32;
+
 //
 // Implement Pack trait
 //
 impl Pack for Dodo {
     // Fixed length
-    const LEN: usize = 124 * 4 + // title 124 chars
-                       24 * 4 + // tagline 24 chars
-                       1 + // state 1byte (0,1,2)
-                       8 + // create_time 4bytes (timestamp)
-                       8 + // update_time 4bytes (timestamp)
-                       1 * 32; // creator 32 bytes
+    const LEN: usize =
+        TITLE_LEN + TAGLINE_LEN + STATE_LEN + CREATE_TIME_LEN + UPDATE_TIME_LEN + CREATOR_LEN;
 
     // Unpack data from [u8] to the data struct
     fn unpack_from_slice(src: &[u8]) -> Result<Self, ProgramError> {
-        let src = array_ref![src, 0, 124 * 4 + 24 * 4 + 1 + 8 + 8 + 1 * 32];
-        let (title, tagline, state, create_time, update_time, creator) =
-            array_refs![src, 124 * 4, 24 * 4, 1, 8, 8, 1 * 32];
+        let src = array_ref![src, 0, Dodo::LEN];
+        let (title, tagline, state, create_time, update_time, creator) = array_refs![
+            src,
+            TITLE_LEN,
+            TAGLINE_LEN,
+            STATE_LEN,
+            CREATE_TIME_LEN,
+            UPDATE_TIME_LEN,
+            CREATOR_LEN
+        ];
 
-        let title_s: String = title
-            .chunks(4)
-            .map(|slice| {
-                let end = if slice[3] > 0 {
-                    3
-                } else if slice[2] > 0 {
-                    2
-                } else if slice[1] > 0 {
-                    1
-                } else {
-                    0
-                };
-
-                from_utf8(&slice[0..=end]).unwrap().to_string()
-            })
-            .collect();
-
-        let tagline_s: String = tagline
-            .chunks(4)
-            .map(|slice| {
-                let end = if slice[3] > 0 {
-                    3
-                } else if slice[2] > 0 {
-                    2
-                } else if slice[1] > 0 {
-                    1
-                } else {
-                    0
-                };
-
-                from_utf8(&slice[0..=end]).unwrap().to_string()
-            })
-            .collect();
-
+        let title_s: String = convert_u8bytes_to_string(title);
+        let tagline_s: String = convert_u8bytes_to_string(tagline);
         let state_u = u8::from_le_bytes(*state);
         let create_time_u = u64::from_le_bytes(*create_time);
         let update_time_u = u64::from_le_bytes(*update_time);
@@ -101,9 +79,16 @@ impl Pack for Dodo {
 
     // Pack data from the data struct to [u8]
     fn pack_into_slice(&self, dst: &mut [u8]) {
-        let dst = array_mut_ref![dst, 0, 124 * 4 + 24 * 4 + 1 + 8 + 8 + 1 * 32];
-        let (dst_title, dst_tagline, dst_state, dst_create_time, dst_update_time, dst_creator) =
-            mut_array_refs![dst, 124 * 4, 24 * 4, 1, 8, 8, 1 * 32];
+        let dst = array_mut_ref![dst, 0, Dodo::LEN];
+        let (dst_title, dst_tagline, dst_state, dst_create_time, dst_update_time, dst_creator) = mut_array_refs![
+            dst,
+            TITLE_LEN,
+            TAGLINE_LEN,
+            STATE_LEN,
+            CREATE_TIME_LEN,
+            UPDATE_TIME_LEN,
+            CREATOR_LEN
+        ];
 
         // Destructure a reference of self to get data to be packed
         let Dodo {
@@ -115,8 +100,8 @@ impl Pack for Dodo {
             creator,
         } = self;
 
-        pack_string_124_chars(&title, dst_title);
-        pack_string_24_chars(&tagline, dst_tagline);
+        pack_string_to_char_bytes(&title, dst_title);
+        pack_string_to_char_bytes(&tagline, dst_tagline);
 
         *dst_state = state.to_le_bytes();
         *dst_create_time = create_time.to_le_bytes();
@@ -125,23 +110,9 @@ impl Pack for Dodo {
     }
 }
 
-fn pack_string_124_chars(src: &String, dst: &mut [u8; 124 * 4]) {
+fn pack_string_to_char_bytes(str: &String, dst: &mut [u8]) {
     let mut index = 0;
-    for c in src.chars() {
-        let char_str = c.to_string();
-        let char_bytes = char_str.as_bytes();
-
-        for i in 0..char_bytes.len() {
-            dst[index + i] = char_bytes[i];
-        }
-
-        index += 4;
-    }
-}
-
-fn pack_string_24_chars(src: &String, dst: &mut [u8; 24 * 4]) {
-    let mut index = 0;
-    for c in src.chars() {
+    for c in str.chars() {
         let char_str = c.to_string();
         let char_bytes = char_str.as_bytes();
 

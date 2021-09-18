@@ -1,8 +1,12 @@
-use std::str::from_utf8;
-
-use crate::error::AppError;
+use crate::{
+    error::AppError,
+    schema::dodo::{
+        Dodo, CREATE_TIME_LEN, CREATOR_LEN, STATE_LEN, TAGLINE_LEN, TITLE_LEN, UPDATE_TIME_LEN,
+    },
+    utils::convert_u8bytes_to_string,
+};
 use arrayref::{array_ref, array_refs};
-use solana_program::program_error::ProgramError;
+use solana_program::{program_error::ProgramError, program_pack::Pack};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum AppInstruction {
@@ -32,44 +36,18 @@ impl AppInstruction {
             0 => {
                 // decode binary data into Dodo schema
 
-                let src = array_ref![rest, 0, 124 * 4 + 24 * 4 + 1 + 8 + 8];
-                let (_title, _tagline, _state, _create_time, _update_time) =
-                    array_refs![src, 124 * 4, 24 * 4, 1, 8, 8];
+                let src = array_ref![rest, 0, Dodo::LEN - CREATOR_LEN]; // remove CREATOR_LEN, creator is not user input.
+                let (_title, _tagline, _state, _create_time, _update_time) = array_refs![
+                    src,
+                    TITLE_LEN,
+                    TAGLINE_LEN,
+                    STATE_LEN,
+                    CREATE_TIME_LEN,
+                    UPDATE_TIME_LEN
+                ];
 
-                let title: String = _title
-                    .chunks(4)
-                    .map(|slice| {
-                        let end = if slice[3] > 0 {
-                            3
-                        } else if slice[2] > 0 {
-                            2
-                        } else if slice[1] > 0 {
-                            1
-                        } else {
-                            0
-                        };
-
-                        from_utf8(&slice[0..=end]).unwrap().to_string()
-                    })
-                    .collect();
-
-                let tagline: String = _tagline
-                    .chunks(4)
-                    .map(|slice| {
-                        let end = if slice[3] > 0 {
-                            3
-                        } else if slice[2] > 0 {
-                            2
-                        } else if slice[1] > 0 {
-                            1
-                        } else {
-                            0
-                        };
-
-                        from_utf8(&slice[0..=end]).unwrap().to_string()
-                    })
-                    .collect();
-
+                let title: String = convert_u8bytes_to_string(_title);
+                let tagline: String = convert_u8bytes_to_string(_tagline);
                 let state = u8::from_le_bytes(*_state);
                 let create_time = u64::from_le_bytes(*_create_time);
                 let update_time = u64::from_le_bytes(*_update_time);
@@ -83,8 +61,8 @@ impl AppInstruction {
                 }
             }
             1 => {
-                let src = array_ref![rest, 0, 1 + 8];
-                let (_state, _update_time) = array_refs![src, 1, 8];
+                let src = array_ref![rest, 0, STATE_LEN + UPDATE_TIME_LEN];
+                let (_state, _update_time) = array_refs![src, STATE_LEN, UPDATE_TIME_LEN];
 
                 let state = u8::from_le_bytes(*_state);
                 let update_time = u64::from_le_bytes(*_update_time);
